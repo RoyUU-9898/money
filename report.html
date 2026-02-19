@@ -2,35 +2,51 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>訂餐月度統計報表</title>
+    <title>訂餐月度統計報表 (進階版)</title>
     <style>
         body { font-family: sans-serif; margin: 20px; background-color: #f4f7f6; }
         .container { max-width: 1200px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h2 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; }
+        .header-box { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #3498db; padding-bottom: 10px; margin-bottom: 20px; }
+        .filter-section { background: #eee; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; background: white; }
         th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
-        th { background-color: #3498db; color: white; position: sticky; top: 0; }
-        .name-col { background-color: #f9f9f9; font-weight: bold; position: sticky; left: 0; }
+        th { background-color: #3498db; color: white; }
+        .name-col { background-color: #f9f9f9; font-weight: bold; }
         .total-row { background-color: #e8f4fd; font-weight: bold; }
-        .meal-info { font-size: 0.85em; color: #555; }
-        .price-info { font-weight: bold; color: #2c3e50; }
-        .btn-refresh { background: #27ae60; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin-bottom: 10px; }
+        .btn-delete { background: #ff4d4d; color: white; border: none; padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 11px; margin-top: 5px; }
+        .btn-delete:hover { background: #cc0000; }
+        .meal-info { font-size: 0.8em; color: #666; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>📊 辦公室訂餐月度明細表</h2>
-    <button class="btn-refresh" onclick="fetchData()">🔄 重新整理資料</button>
-    
-    <div id="tableContainer">
-        <p>正在從雲端讀取資料...</p>
+    <div class="header-box">
+        <h2>📊 辦公室訂餐統計報表</h2>
+        <a href="index.html" style="text-decoration:none; color:#3498db;">← 回登記頁</a>
     </div>
+
+    <div class="filter-section">
+        <label>選擇年份：</label>
+        <select id="selectYear"></select>
+        <label> 選擇月份：</label>
+        <select id="selectMonth">
+            <option value="01">1月</option><option value="02">2月</option>
+            <option value="03">3月</option><option value="04">4月</option>
+            <option value="05">5月</option><option value="06">6月</option>
+            <option value="07">7月</option><option value="08">8月</option>
+            <option value="09">9月</option><option value="10">10月</option>
+            <option value="11">11月</option><option value="12">12月</option>
+        </select>
+        <button onclick="fetchData()" style="padding: 5px 15px; cursor:pointer;">篩選</button>
+    </div>
+    
+    <div id="tableContainer">讀取中...</div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, query, where, orderBy, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyD9AC2UZYYGLyBgVQnYYszgYmvP1ryJ0CA",
@@ -44,55 +60,82 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
+    // 初始化年份選單
+    const yearSelect = document.getElementById('selectYear');
+    const currentYear = new Date().getFullYear();
+    for(let y = currentYear - 1; y <= currentYear + 1; y++) {
+        let opt = document.createElement('option');
+        opt.value = y; opt.text = y + "年";
+        if(y === currentYear) opt.selected = true;
+        yearSelect.appendChild(opt);
+    }
+    document.getElementById('selectMonth').value = String(new Date().getMonth() + 1).padStart(2, '0');
+
+    // 刪除功能
+    window.deleteOrder = async function(id, date) {
+        if (confirm(`確定要刪除 ${date} 的這筆訂單嗎？此動作無法復原。`)) {
+            try {
+                await deleteDoc(doc(db, "orders", id));
+                alert("已成功刪除");
+                fetchData(); // 重新整理表格
+            } catch (error) {
+                alert("刪除失敗：" + error);
+            }
+        }
+    }
+
     async function fetchData() {
         const tableContainer = document.getElementById('tableContainer');
+        const selectedYear = document.getElementById('selectYear').value;
+        const selectedMonth = document.getElementById('selectMonth').value;
+        const startDate = `${selectedYear}-${selectedMonth}-01`;
+        const endDate = `${selectedYear}-${selectedMonth}-31`;
+
         try {
-            // 1. 從 Firebase 抓取所有訂單，按日期排序
-            const q = query(collection(db, "orders"), orderBy("date", "asc"));
-            const querySnapshot = await getDocs(q);
+            // 只抓取選擇月份的資料
+            const q = query(
+                collection(db, "orders"), 
+                where("date", ">=", startDate),
+                where("date", "<=", endDate),
+                orderBy("date", "asc")
+            );
             
+            const querySnapshot = await getDocs(q);
             let orders = [];
             let allNames = new Set();
 
             querySnapshot.forEach((doc) => {
-                const data = doc.data();
-                orders.push(data);
-                data.details.forEach(item => allNames.add(item.name));
+                orders.push({ id: doc.id, ...doc.data() });
+                doc.data().details.forEach(item => allNames.add(item.name));
             });
 
             if (orders.length === 0) {
-                tableContainer.innerHTML = "<p>目前尚無資料。</p>";
+                tableContainer.innerHTML = "<p>所選月份無資料。</p>";
                 return;
             }
 
-            // 2. 建立表格 HTML
-            let html = `<table><thead><tr><th class="name-col">人 / 日期</th>`;
-            
-            // 標題列：日期 + 店家
+            let html = `<table><thead><tr><th class="name-col">同事 / 日期</th>`;
             orders.forEach(order => {
-                html += `<th>${order.date.substring(5)}<br>${order.shopName}</th>`;
+                html += `<th>
+                    ${order.date.substring(5)}<br>${order.shopName}
+                    <br><button class="btn-delete" onclick="deleteOrder('${order.id}', '${order.date}')">刪除</button>
+                </th>`;
             });
             html += `<th>本月總計</th></tr></thead><tbody>`;
 
-            // 3. 填入每個人的資料
             const sortedNames = Array.from(allNames).sort();
             sortedNames.forEach(name => {
                 html += `<tr><td class="name-col">${name}</td>`;
                 let personTotal = 0;
-
                 orders.forEach(order => {
                     const record = order.details.find(d => d.name === name);
                     if (record) {
-                        html += `<td>
-                            <div class="meal-info">${record.meal}</div>
-                            <div class="price-info">${record.originalPrice} + ${order.perPersonExtra}</div>
-                        </td>`;
+                        html += `<td><span class="meal-info">${record.meal}</span><br><b>${record.finalPrice}</b></td>`;
                         personTotal += record.finalPrice;
                     } else {
                         html += `<td>-</td>`;
                     }
                 });
-
                 html += `<td class="total-row">$${personTotal}</td></tr>`;
             });
 
@@ -100,12 +143,11 @@
             tableContainer.innerHTML = html;
 
         } catch (error) {
-            console.error("讀取失敗：", error);
-            tableContainer.innerHTML = "<p>讀取失敗，請檢查 Firebase 規則設定。</p>";
+            console.error(error);
+            tableContainer.innerHTML = "讀取失敗，請確認 Firebase 索引是否已建立（檢查瀏覽器 F12 提示）。";
         }
     }
 
-    // 初次載入
     window.fetchData = fetchData;
     fetchData();
 </script>
