@@ -17,8 +17,11 @@
         .btn-delete { background: #ff4d4d; color: white; border: none; padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 11px; margin-top: 5px; }
         .btn-confirm { background-color: #2980b9; color: white; border: none; padding: 6px 20px; border-radius: 4px; cursor: pointer; }
         .meal-info { font-size: 0.85em; color: #7f8c8d; display: block; margin-bottom: 3px; }
-        .extra-info { font-size: 0.8em; color: #e67e22; background: #fff5eb; padding: 5px; margin-top: 5px; }
         .calc-detail { font-size: 0.9em; color: #2980b9; }
+        /* 繳費勾選樣式 */
+        .pay-status { margin-top: 5px; border-top: 1px dashed #eee; padding-top: 5px; }
+        .paid-bg { background-color: #eaffea !important; } /* 已繳費背景變綠色 */
+        input[type="checkbox"] { transform: scale(1.2); cursor: pointer; }
     </style>
 </head>
 <body>
@@ -48,7 +51,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, collection, getDocs, query, where, orderBy, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, query, where, orderBy, doc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyD9AC2UZYYGLyBgVQnYYszgYmvP1ryJ0CA",
@@ -84,6 +87,55 @@
         }
     }
 
+    // 繳費勾選同步功能
+    window.togglePaid = async function(orderId, memberName, checkbox) {
+        const statusText = checkbox.checked ? "已繳費" : "未繳費";
+        if (!confirm(`確定將 ${memberName} 標記為 ${statusText} 嗎？`)) {
+            checkbox.checked = !checkbox.checked; // 取消勾選
+            return;
+        }
+
+        try {
+            // 先抓取目前這筆訂單的資料
+            const q = query(collection(db, "orders"));
+            const querySnapshot = await getDocs(q);
+            let targetDoc = null;
+            let currentDetails = [];
+
+            // 找到該筆文件
+            const orderRef = doc(db, "orders", orderId);
+            const snapshot = await getDocs(query(collection(db, "orders"))); // 簡化處理，直接取該ID
+
+            // 讀取該筆訂單的所有 details
+            const allDocs = await getDocs(collection(db, "orders"));
+            allDocs.forEach(d => {
+                if(d.id === orderId) {
+                    targetDoc = d.data();
+                }
+            });
+
+            if (targetDoc) {
+                const updatedDetails = targetDoc.details.map(member => {
+                    if (member.name === memberName) {
+                        return { ...member, isPaid: checkbox.checked };
+                    }
+                    return member;
+                });
+
+                // 更新回 Firebase
+                await updateDoc(orderRef, { details: updatedDetails });
+                
+                // 更新該格背景色
+                const parentTd = checkbox.closest('td');
+                if(checkbox.checked) parentTd.classList.add('paid-bg');
+                else parentTd.classList.remove('paid-bg');
+            }
+        } catch (error) {
+            console.error(error);
+            alert("更新失敗，請檢查連線");
+        }
+    }
+
     async function fetchData() {
         const tableContainer = document.getElementById('tableContainer');
         const selectedYear = document.getElementById('selectYear').value;
@@ -115,7 +167,6 @@
 
             let html = `<table><thead><tr><th class="name-col">人 / 日期</th>`;
             
-            // 標題列
             orders.forEach(order => {
                 html += `<th>
                     ${order.date.substring(5).replace('-','/')}<br>${order.shopName}
@@ -124,7 +175,6 @@
             });
             html += `<th>本月總計</th></tr></thead><tbody>`;
 
-            // 同事資料列
             const sortedNames = Array.from(allNames).sort();
             sortedNames.forEach(name => {
                 html += `<tr><td class="name-col">${name}</td>`;
@@ -133,10 +183,16 @@
                 orders.forEach(order => {
                     const record = order.details.find(d => d.name === name);
                     if (record) {
-                        html += `<td>
+                        const isPaid = record.isPaid || false;
+                        html += `<td class="${isPaid ? 'paid-bg' : ''}">
                             <span class="meal-info">${record.meal}</span>
                             <span class="calc-detail">${record.originalPrice} + ${order.perPersonExtra}</span>
                             <div style="font-weight:bold; color:#2c3e50; margin-top:2px;">= ${record.finalPrice}</div>
+                            <div class="pay-status">
+                                <label style="font-size:11px; cursor:pointer;">
+                                    <input type="checkbox" ${isPaid ? 'checked' : ''} onchange="togglePaid('${order.id}', '${name}', this)"> 已繳
+                                </label>
+                            </div>
                         </td>`;
                         personTotal += record.finalPrice;
                     } else {
@@ -146,7 +202,6 @@
                 html += `<td class="total-row">$${personTotal}</td></tr>`;
             });
 
-            // 底部統計區（外送費與折扣明細）
             html += `<tr><td class="name-col" style="background:#eee;">外送+服務費</td>`;
             orders.forEach(order => { html += `<td style="color:#2980b9;">${order.totalFee || 0}</td>`; });
             html += `<td rowspan="2" style="background:#eee;">---</td></tr>`;
