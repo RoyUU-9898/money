@@ -14,9 +14,9 @@
         .member-row { display: flex; align-items: center; margin-bottom: 10px; gap: 10px; background: #fafafa; padding: 10px; border-radius: 4px; }
         button { cursor: pointer; padding: 8px 15px; border: none; border-radius: 4px; transition: 0.3s; }
         .btn-add { background-color: #27ae60; color: white; }
-        .btn-submit { background-color: #2980b9; color: white; width: 100%; font-size: 1.1em; }
+        .btn-submit { background-color: #2980b9; color: white; width: 100%; font-size: 1.1em; margin-bottom: 10px; }
         .btn-remove { background-color: #e74c3c; color: white; }
-        .result { margin-top: 20px; font-weight: bold; color: #2c3e50; background: #e8f4fd; padding: 15px; border-radius: 5px; }
+        .result { margin-top: 20px; font-weight: bold; color: #2c3e50; background: #e8f4fd; padding: 15px; border-radius: 5px; white-space: pre-line; }
     </style>
 </head>
 <body>
@@ -48,16 +48,39 @@
         <button class="btn-add" onclick="addMember()">+ 新增同事</button>
     </div>
 
-    <button class="btn-submit" onclick="calculate()">計算並登記 (預覽結果)</button>
+    <button class="btn-submit" id="saveBtn">計算並儲存到 Firebase</button>
 
     <div id="summary" class="result" style="display:none;"></div>
 </div>
 
-<script>
+<script type="module">
+    // 引入 Firebase SDK
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    // 你的 Firebase 設定值 (已填入你提供的資訊)
+    const firebaseConfig = {
+        apiKey: "AIzaSyD9AC2UZYYGLyBgVQnYYszgYmvP1ryJ0CA",
+        authDomain: "money-count-1e609.firebaseapp.com",
+        projectId: "money-count-1e609",
+        storageBucket: "money-count-1e609.firebasestorage.app",
+        messagingSenderId: "524544445971",
+        appId: "1:524544445971:web:56a49a7509024bd75a39e6",
+        measurementId: "G-M728XJX734"
+    };
+
+    // 初始化 Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
     // 設定預設日期為今天
     document.getElementById('orderDate').valueAsDate = new Date();
 
-    function addMember() {
+    // 讓按鈕點擊後執行儲存
+    document.getElementById('saveBtn').addEventListener('click', saveToFirebase);
+
+    // 新增同事欄位
+    window.addMember = function() {
         const div = document.createElement('div');
         div.className = 'member-row';
         div.innerHTML = `
@@ -69,36 +92,63 @@
         document.getElementById('memberList').appendChild(div);
     }
 
-    function calculate() {
+    async function saveToFirebase() {
         const fee = parseFloat(document.getElementById('fee').value) || 0;
         const discount = parseFloat(document.getElementById('discount').value) || 0;
+        const shopName = document.getElementById('shopName').value;
+        const orderDate = document.getElementById('orderDate').value;
+        
         const names = document.getElementsByClassName('m-name');
         const meals = document.getElementsByClassName('m-meal');
         const prices = document.getElementsByClassName('m-price');
         
         const count = names.length;
-        if (count === 0) return alert("請至少新增一位同事");
+        if (!shopName || count === 0) return alert("請填寫店家名稱並至少新增一位同事");
 
+        // 計算平攤費
         const netExtra = fee - discount;
         const perPersonExtra = Math.round(netExtra / count);
 
-        let html = `📅 日期：${document.getElementById('orderDate').value}<br>`;
-        html += `🏪 店家：${document.getElementById('shopName').value}<br><hr>`;
-        html += `💡 每人分攤額：(${fee} - ${discount}) ÷ ${count} = ${perPersonExtra} 元<br><br>`;
+        // 整理要儲存的資料結構
+        const orderData = {
+            date: orderDate,
+            shopName: shopName,
+            totalFee: fee,
+            totalDiscount: discount,
+            perPersonExtra: perPersonExtra,
+            createdAt: new Date(),
+            details: []
+        };
 
-        let totalOrder = 0;
+        let summaryText = `📅 日期：${orderDate}\n🏪 店家：${shopName}\n💡 分攤額：${perPersonExtra} 元\n----------------\n`;
+
         for (let i = 0; i < count; i++) {
             const p = parseFloat(prices[i].value) || 0;
             const final = p + perPersonExtra;
-            totalOrder += final;
-            html += `👤 ${names[i].value || '匿名'}：${meals[i].value} (${p} + ${perPersonExtra}) = <b>${final} 元</b><br>`;
-        }
-        
-        html += `<br>💰 今日總收金額：${totalOrder} 元`;
+            
+            orderData.details.push({
+                name: names[i].value || '匿名',
+                meal: meals[i].value || '未填寫',
+                originalPrice: p,
+                finalPrice: final
+            });
 
-        const summary = document.getElementById('summary');
-        summary.innerHTML = html;
-        summary.style.display = 'block';
+            summaryText += `👤 ${names[i].value || '匿名'}：${final} 元\n`;
+        }
+
+        try {
+            // 儲存到 Firestore 的 "orders" 集合
+            await addDoc(collection(db, "orders"), orderData);
+            
+            const summaryDiv = document.getElementById('summary');
+            summaryDiv.innerText = "✅ 已成功儲存到雲端！\n\n" + summaryText;
+            summaryDiv.style.display = 'block';
+            
+            alert("資料已成功上傳！");
+        } catch (error) {
+            console.error("Error: ", error);
+            alert("儲存失敗，請檢查網路或 Firebase 規則設定。");
+        }
     }
 </script>
 
