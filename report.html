@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>訂餐月度統計報表</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background-color: #f4f7f6; }
+        .container { max-width: 1200px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h2 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
+        th { background-color: #3498db; color: white; position: sticky; top: 0; }
+        .name-col { background-color: #f9f9f9; font-weight: bold; position: sticky; left: 0; }
+        .total-row { background-color: #e8f4fd; font-weight: bold; }
+        .meal-info { font-size: 0.85em; color: #555; }
+        .price-info { font-weight: bold; color: #2c3e50; }
+        .btn-refresh { background: #27ae60; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>📊 辦公室訂餐月度明細表</h2>
+    <button class="btn-refresh" onclick="fetchData()">🔄 重新整理資料</button>
+    
+    <div id="tableContainer">
+        <p>正在從雲端讀取資料...</p>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyD9AC2UZYYGLyBgVQnYYszgYmvP1ryJ0CA",
+        authDomain: "money-count-1e609.firebaseapp.com",
+        projectId: "money-count-1e609",
+        storageBucket: "money-count-1e609.firebasestorage.app",
+        messagingSenderId: "524544445971",
+        appId: "1:524544445971:web:56a49a7509024bd75a39e6"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    async function fetchData() {
+        const tableContainer = document.getElementById('tableContainer');
+        try {
+            // 1. 從 Firebase 抓取所有訂單，按日期排序
+            const q = query(collection(db, "orders"), orderBy("date", "asc"));
+            const querySnapshot = await getDocs(q);
+            
+            let orders = [];
+            let allNames = new Set();
+
+            querySnapshot.forEach((doc) => {
+                const data = doc.data();
+                orders.push(data);
+                data.details.forEach(item => allNames.add(item.name));
+            });
+
+            if (orders.length === 0) {
+                tableContainer.innerHTML = "<p>目前尚無資料。</p>";
+                return;
+            }
+
+            // 2. 建立表格 HTML
+            let html = `<table><thead><tr><th class="name-col">人 / 日期</th>`;
+            
+            // 標題列：日期 + 店家
+            orders.forEach(order => {
+                html += `<th>${order.date.substring(5)}<br>${order.shopName}</th>`;
+            });
+            html += `<th>本月總計</th></tr></thead><tbody>`;
+
+            // 3. 填入每個人的資料
+            const sortedNames = Array.from(allNames).sort();
+            sortedNames.forEach(name => {
+                html += `<tr><td class="name-col">${name}</td>`;
+                let personTotal = 0;
+
+                orders.forEach(order => {
+                    const record = order.details.find(d => d.name === name);
+                    if (record) {
+                        html += `<td>
+                            <div class="meal-info">${record.meal}</div>
+                            <div class="price-info">${record.originalPrice} + ${order.perPersonExtra}</div>
+                        </td>`;
+                        personTotal += record.finalPrice;
+                    } else {
+                        html += `<td>-</td>`;
+                    }
+                });
+
+                html += `<td class="total-row">$${personTotal}</td></tr>`;
+            });
+
+            html += `</tbody></table>`;
+            tableContainer.innerHTML = html;
+
+        } catch (error) {
+            console.error("讀取失敗：", error);
+            tableContainer.innerHTML = "<p>讀取失敗，請檢查 Firebase 規則設定。</p>";
+        }
+    }
+
+    // 初次載入
+    window.fetchData = fetchData;
+    fetchData();
+</script>
+
+</body>
+</html>
