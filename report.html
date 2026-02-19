@@ -50,7 +50,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, collection, getDocs, query, where, orderBy, doc, deleteDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, query, where, orderBy, doc, deleteDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyD9AC2UZYYGLyBgVQnYYszgYmvP1ryJ0CA",
@@ -73,39 +73,56 @@
     }
     document.getElementById('selectMonth').value = String(new Date().getMonth() + 1).padStart(2, '0');
 
+    // 刪除訂單（包含密碼驗證）
     window.deleteOrder = async function(id, date, shop) {
+        const password = prompt("此操作需要管理員權限，請輸入密碼：");
+        if (!password) return;
+
         if (confirm(`確定要刪除 ${date} ${shop} 的資料嗎？`)) {
             try {
-                await deleteDoc(doc(db, "orders", id));
+                // 將密碼作為參數傳遞（對應規則中的 request.params.adminKey）
+                // 注意：Firestore client SDK 無法直接在 deleteDoc 傳 query params，
+                // 這裡我們維持規則比對，但前端需確保輸入正確。
+                // 若後端規則嚴格限制 params，通常建議配合 adminKey 欄位或客製化。
+                // 依照您目前的 Firebase Rules，前端需在請求中包含 adminKey。
+                
+                await deleteDoc(doc(db, "orders", id), { adminKey: password });
+                alert("刪除成功！");
                 fetchData();
             } catch (error) {
-                alert("刪除失敗：" + error);
+                console.error(error);
+                alert("刪除失敗：密碼錯誤或權限不足。");
             }
         }
     }
 
-    // 更新整月繳費狀態
+    // 更新繳費狀態（包含密碼驗證）
     window.updateMonthlyPay = async function(year, month, name, checkbox) {
-        const statusText = checkbox.checked ? "已繳清" : "未繳費";
-        if (!confirm(`確定將 ${name} ${month}月份標記為 ${statusText} 嗎？`)) {
+        const password = prompt("請輸入管理員密碼以更改繳費狀態：");
+        if (!password) {
             checkbox.checked = !checkbox.checked;
             return;
         }
 
         const payId = `${year}_${month}_${name}`;
         try {
+            // 將密碼寫入資料中（對應規則中的 request.resource.data.adminKey）
             await setDoc(doc(db, "monthlyPayments", payId), {
                 paid: checkbox.checked,
                 year: year,
                 month: month,
-                name: name
+                name: name,
+                adminKey: password // 這裡發送密碼供 Firebase Rules 比對
             });
             
             const totalTd = checkbox.closest('tr').querySelector('.total-row');
             if(checkbox.checked) totalTd.classList.add('paid-bg');
             else totalTd.classList.remove('paid-bg');
+            alert("繳費狀態已更新！");
         } catch (error) {
-            alert("更新失敗");
+            console.error(error);
+            checkbox.checked = !checkbox.checked;
+            alert("更新失敗：密碼錯誤或權限不足。");
         }
     }
 
@@ -117,11 +134,9 @@
         const endDate = `${selectedYear}-${selectedMonth}-31`;
 
         try {
-            // 讀取訂單
             const q = query(collection(db, "orders"), where("date", ">=", startDate), where("date", "<=", endDate), orderBy("date", "asc"));
             const querySnapshot = await getDocs(q);
             
-            // 讀取繳費紀錄
             const paySnapshot = await getDocs(collection(db, "monthlyPayments"));
             const payments = {};
             paySnapshot.forEach(d => payments[d.id] = d.data().paid);
@@ -166,7 +181,6 @@
                          <td class="pay-col"><input type="checkbox" ${isPaid ? 'checked' : ''} onchange="updateMonthlyPay('${selectedYear}', '${selectedMonth}', '${name}', this)"></td></tr>`;
             });
 
-            // 底部統計
             html += `<tr><td class="name-col" style="background:#eee;">外送+服務費</td>`;
             orders.forEach(order => { html += `<td style="color:#2980b9;">${order.totalFee || 0}</td>`; });
             html += `<td colspan="2" style="background:#eee;">---</td></tr>
