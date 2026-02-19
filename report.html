@@ -5,7 +5,7 @@
     <title>Lishin訂餐價錢表</title>
     <style>
         body { font-family: "Microsoft JhengHei", sans-serif; margin: 20px; background-color: #f4f7f6; }
-        .container { max-width: 1300px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .container { max-width: 1350px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         .header-box { text-align: center; border-bottom: 2px solid #3498db; padding-bottom: 15px; margin-bottom: 20px; }
         h2 { color: #2c3e50; margin: 0; }
         .filter-section { background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
@@ -13,15 +13,14 @@
         th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
         th { background-color: #3498db; color: white; min-width: 100px; }
         .name-col { background-color: #f9f9f9; font-weight: bold; width: 80px; }
-        .total-row { background-color: #fff9db; font-weight: bold; color: #d35400; }
+        .total-row { background-color: #fff9db; font-weight: bold; color: #d35400; width: 100px; }
+        .pay-col { width: 80px; font-weight: bold; }
         .btn-delete { background: #ff4d4d; color: white; border: none; padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 11px; margin-top: 5px; }
         .btn-confirm { background-color: #2980b9; color: white; border: none; padding: 6px 20px; border-radius: 4px; cursor: pointer; }
         .meal-info { font-size: 0.85em; color: #7f8c8d; display: block; margin-bottom: 3px; }
         .calc-detail { font-size: 0.9em; color: #2980b9; }
-        /* 繳費勾選樣式 */
-        .pay-status { margin-top: 5px; border-top: 1px dashed #eee; padding-top: 5px; }
-        .paid-bg { background-color: #eaffea !important; } /* 已繳費背景變綠色 */
-        input[type="checkbox"] { transform: scale(1.2); cursor: pointer; }
+        .paid-bg { background-color: #eaffea !important; color: #27ae60 !important; }
+        input[type="checkbox"] { transform: scale(1.3); cursor: pointer; }
     </style>
 </head>
 <body>
@@ -51,7 +50,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, collection, getDocs, query, where, orderBy, doc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, query, where, orderBy, doc, deleteDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyD9AC2UZYYGLyBgVQnYYszgYmvP1ryJ0CA",
@@ -65,7 +64,6 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // 設定 2026-2030 年份選單
     const yearSelect = document.getElementById('selectYear');
     for(let y = 2026; y <= 2030; y++) {
         let opt = document.createElement('option');
@@ -75,7 +73,6 @@
     }
     document.getElementById('selectMonth').value = String(new Date().getMonth() + 1).padStart(2, '0');
 
-    // 刪除功能
     window.deleteOrder = async function(id, date, shop) {
         if (confirm(`確定要刪除 ${date} ${shop} 的資料嗎？`)) {
             try {
@@ -87,52 +84,28 @@
         }
     }
 
-    // 繳費勾選同步功能
-    window.togglePaid = async function(orderId, memberName, checkbox) {
-        const statusText = checkbox.checked ? "已繳費" : "未繳費";
-        if (!confirm(`確定將 ${memberName} 標記為 ${statusText} 嗎？`)) {
-            checkbox.checked = !checkbox.checked; // 取消勾選
+    // 更新整月繳費狀態
+    window.updateMonthlyPay = async function(year, month, name, checkbox) {
+        const statusText = checkbox.checked ? "已繳清" : "未繳費";
+        if (!confirm(`確定將 ${name} ${month}月份標記為 ${statusText} 嗎？`)) {
+            checkbox.checked = !checkbox.checked;
             return;
         }
 
+        const payId = `${year}_${month}_${name}`;
         try {
-            // 先抓取目前這筆訂單的資料
-            const q = query(collection(db, "orders"));
-            const querySnapshot = await getDocs(q);
-            let targetDoc = null;
-            let currentDetails = [];
-
-            // 找到該筆文件
-            const orderRef = doc(db, "orders", orderId);
-            const snapshot = await getDocs(query(collection(db, "orders"))); // 簡化處理，直接取該ID
-
-            // 讀取該筆訂單的所有 details
-            const allDocs = await getDocs(collection(db, "orders"));
-            allDocs.forEach(d => {
-                if(d.id === orderId) {
-                    targetDoc = d.data();
-                }
+            await setDoc(doc(db, "monthlyPayments", payId), {
+                paid: checkbox.checked,
+                year: year,
+                month: month,
+                name: name
             });
-
-            if (targetDoc) {
-                const updatedDetails = targetDoc.details.map(member => {
-                    if (member.name === memberName) {
-                        return { ...member, isPaid: checkbox.checked };
-                    }
-                    return member;
-                });
-
-                // 更新回 Firebase
-                await updateDoc(orderRef, { details: updatedDetails });
-                
-                // 更新該格背景色
-                const parentTd = checkbox.closest('td');
-                if(checkbox.checked) parentTd.classList.add('paid-bg');
-                else parentTd.classList.remove('paid-bg');
-            }
+            
+            const totalTd = checkbox.closest('tr').querySelector('.total-row');
+            if(checkbox.checked) totalTd.classList.add('paid-bg');
+            else totalTd.classList.remove('paid-bg');
         } catch (error) {
-            console.error(error);
-            alert("更新失敗，請檢查連線");
+            alert("更新失敗");
         }
     }
 
@@ -144,17 +117,17 @@
         const endDate = `${selectedYear}-${selectedMonth}-31`;
 
         try {
-            const q = query(
-                collection(db, "orders"), 
-                where("date", ">=", startDate),
-                where("date", "<=", endDate),
-                orderBy("date", "asc")
-            );
-            
+            // 讀取訂單
+            const q = query(collection(db, "orders"), where("date", ">=", startDate), where("date", "<=", endDate), orderBy("date", "asc"));
             const querySnapshot = await getDocs(q);
+            
+            // 讀取繳費紀錄
+            const paySnapshot = await getDocs(collection(db, "monthlyPayments"));
+            const payments = {};
+            paySnapshot.forEach(d => payments[d.id] = d.data().paid);
+
             let orders = [];
             let allNames = new Set();
-
             querySnapshot.forEach((doc) => {
                 orders.push({ id: doc.id, ...doc.data() });
                 doc.data().details.forEach(item => allNames.add(item.name));
@@ -165,57 +138,47 @@
                 return;
             }
 
-            let html = `<table><thead><tr><th class="name-col">人 / 日期</th>`;
-            
+            let html = `<table><thead><tr><th class="name-col">老師 / 日期</th>`;
             orders.forEach(order => {
-                html += `<th>
-                    ${order.date.substring(5).replace('-','/')}<br>${order.shopName}
-                    <br><button class="btn-delete" onclick="deleteOrder('${order.id}', '${order.date}', '${order.shopName}')">刪除</button>
-                </th>`;
+                html += `<th>${order.date.substring(5).replace('-','/')}<br>${order.shopName}<br><button class="btn-delete" onclick="deleteOrder('${order.id}', '${order.date}', '${order.shopName}')">刪除</button></th>`;
             });
-            html += `<th>本月總計</th></tr></thead><tbody>`;
+            html += `<th class="total-row">本月總計</th><th class="pay-col">繳費狀態</th></tr></thead><tbody>`;
 
             const sortedNames = Array.from(allNames).sort();
             sortedNames.forEach(name => {
+                const payId = `${selectedYear}_${selectedMonth}_${name}`;
+                const isPaid = payments[payId] || false;
+                
                 html += `<tr><td class="name-col">${name}</td>`;
                 let personTotal = 0;
                 
                 orders.forEach(order => {
                     const record = order.details.find(d => d.name === name);
                     if (record) {
-                        const isPaid = record.isPaid || false;
-                        html += `<td class="${isPaid ? 'paid-bg' : ''}">
-                            <span class="meal-info">${record.meal}</span>
-                            <span class="calc-detail">${record.originalPrice} + ${order.perPersonExtra}</span>
-                            <div style="font-weight:bold; color:#2c3e50; margin-top:2px;">= ${record.finalPrice}</div>
-                            <div class="pay-status">
-                                <label style="font-size:11px; cursor:pointer;">
-                                    <input type="checkbox" ${isPaid ? 'checked' : ''} onchange="togglePaid('${order.id}', '${name}', this)"> 已繳
-                                </label>
-                            </div>
-                        </td>`;
+                        html += `<td><span class="meal-info">${record.meal}</span><span class="calc-detail">${record.originalPrice} + ${order.perPersonExtra} = <b>${record.finalPrice}</b></span></td>`;
                         personTotal += record.finalPrice;
                     } else {
                         html += `<td>-</td>`;
                     }
                 });
-                html += `<td class="total-row">$${personTotal}</td></tr>`;
+
+                html += `<td class="total-row ${isPaid ? 'paid-bg' : ''}">$${personTotal}</td>
+                         <td class="pay-col"><input type="checkbox" ${isPaid ? 'checked' : ''} onchange="updateMonthlyPay('${selectedYear}', '${selectedMonth}', '${name}', this)"></td></tr>`;
             });
 
+            // 底部統計
             html += `<tr><td class="name-col" style="background:#eee;">外送+服務費</td>`;
             orders.forEach(order => { html += `<td style="color:#2980b9;">${order.totalFee || 0}</td>`; });
-            html += `<td rowspan="2" style="background:#eee;">---</td></tr>`;
-
-            html += `<tr><td class="name-col" style="background:#eee;">優惠折扣</td>`;
+            html += `<td colspan="2" style="background:#eee;">---</td></tr>
+                     <tr><td class="name-col" style="background:#eee;">優惠折扣</td>`;
             orders.forEach(order => { html += `<td style="color:#e74c3c;">-${order.totalDiscount || 0}</td>`; });
-            html += `</tr>`;
-
-            html += `</tbody></table>`;
+            html += `<td colspan="2" style="background:#eee;">---</td></tr></tbody></table>`;
+            
             tableContainer.innerHTML = html;
 
         } catch (error) {
             console.error(error);
-            tableContainer.innerHTML = "讀取失敗，請確認 Firebase 索引設定。";
+            tableContainer.innerHTML = "讀取失敗，請確認 Firebase 索引。";
         }
     }
 
