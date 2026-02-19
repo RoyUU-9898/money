@@ -2,34 +2,36 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>訂餐月度統計報表 (進階版)</title>
+    <title>Lishin訂餐價錢表</title>
     <style>
-        body { font-family: sans-serif; margin: 20px; background-color: #f4f7f6; }
-        .container { max-width: 1200px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .header-box { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #3498db; padding-bottom: 10px; margin-bottom: 20px; }
-        .filter-section { background: #eee; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
-        table { width: 100%; border-collapse: collapse; background: white; }
-        th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
-        th { background-color: #3498db; color: white; }
-        .name-col { background-color: #f9f9f9; font-weight: bold; }
-        .total-row { background-color: #e8f4fd; font-weight: bold; }
+        body { font-family: "Microsoft JhengHei", sans-serif; margin: 20px; background-color: #f4f7f6; }
+        .container { max-width: 1300px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .header-box { text-align: center; border-bottom: 2px solid #3498db; padding-bottom: 15px; margin-bottom: 20px; }
+        h2 { color: #2c3e50; margin: 0; }
+        .filter-section { background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        table { width: 100%; border-collapse: collapse; background: white; font-size: 14px; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+        th { background-color: #3498db; color: white; min-width: 100px; }
+        .name-col { background-color: #f9f9f9; font-weight: bold; width: 80px; }
+        .total-row { background-color: #fff9db; font-weight: bold; color: #d35400; }
         .btn-delete { background: #ff4d4d; color: white; border: none; padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 11px; margin-top: 5px; }
-        .btn-delete:hover { background: #cc0000; }
-        .meal-info { font-size: 0.8em; color: #666; }
+        .btn-confirm { background-color: #2980b9; color: white; border: none; padding: 6px 20px; border-radius: 4px; cursor: pointer; }
+        .meal-info { font-size: 0.85em; color: #7f8c8d; display: block; margin-bottom: 3px; }
+        .extra-info { font-size: 0.8em; color: #e67e22; background: #fff5eb; padding: 5px; margin-top: 5px; }
+        .calc-detail { font-size: 0.9em; color: #2980b9; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div class="header-box">
-        <h2>📊 辦公室訂餐統計報表</h2>
-        <a href="index.html" style="text-decoration:none; color:#3498db;">← 回登記頁</a>
+        <h2>Lishin訂餐價錢表</h2>
     </div>
 
     <div class="filter-section">
-        <label>選擇年份：</label>
+        <label>年份：</label>
         <select id="selectYear"></select>
-        <label> 選擇月份：</label>
+        <label>月份：</label>
         <select id="selectMonth">
             <option value="01">1月</option><option value="02">2月</option>
             <option value="03">3月</option><option value="04">4月</option>
@@ -38,10 +40,10 @@
             <option value="09">9月</option><option value="10">10月</option>
             <option value="11">11月</option><option value="12">12月</option>
         </select>
-        <button onclick="fetchData()" style="padding: 5px 15px; cursor:pointer;">篩選</button>
+        <button class="btn-confirm" onclick="fetchData()">確認</button>
     </div>
     
-    <div id="tableContainer">讀取中...</div>
+    <div id="tableContainer" style="overflow-x: auto;">正在讀取資料...</div>
 </div>
 
 <script type="module">
@@ -60,24 +62,22 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // 初始化年份選單
+    // 設定 2026-2030 年份選單
     const yearSelect = document.getElementById('selectYear');
-    const currentYear = new Date().getFullYear();
-    for(let y = currentYear - 1; y <= currentYear + 1; y++) {
+    for(let y = 2026; y <= 2030; y++) {
         let opt = document.createElement('option');
         opt.value = y; opt.text = y + "年";
-        if(y === currentYear) opt.selected = true;
+        if(y === new Date().getFullYear()) opt.selected = true;
         yearSelect.appendChild(opt);
     }
     document.getElementById('selectMonth').value = String(new Date().getMonth() + 1).padStart(2, '0');
 
     // 刪除功能
-    window.deleteOrder = async function(id, date) {
-        if (confirm(`確定要刪除 ${date} 的這筆訂單嗎？此動作無法復原。`)) {
+    window.deleteOrder = async function(id, date, shop) {
+        if (confirm(`確定要刪除 ${date} ${shop} 的資料嗎？`)) {
             try {
                 await deleteDoc(doc(db, "orders", id));
-                alert("已成功刪除");
-                fetchData(); // 重新整理表格
+                fetchData();
             } catch (error) {
                 alert("刪除失敗：" + error);
             }
@@ -92,7 +92,6 @@
         const endDate = `${selectedYear}-${selectedMonth}-31`;
 
         try {
-            // 只抓取選擇月份的資料
             const q = query(
                 collection(db, "orders"), 
                 where("date", ">=", startDate),
@@ -110,27 +109,35 @@
             });
 
             if (orders.length === 0) {
-                tableContainer.innerHTML = "<p>所選月份無資料。</p>";
+                tableContainer.innerHTML = "<p style='text-align:center; color:#999;'>此月份目前尚無登記資料。</p>";
                 return;
             }
 
-            let html = `<table><thead><tr><th class="name-col">同事 / 日期</th>`;
+            let html = `<table><thead><tr><th class="name-col">人 / 日期</th>`;
+            
+            // 標題列
             orders.forEach(order => {
                 html += `<th>
-                    ${order.date.substring(5)}<br>${order.shopName}
-                    <br><button class="btn-delete" onclick="deleteOrder('${order.id}', '${order.date}')">刪除</button>
+                    ${order.date.substring(5).replace('-','/')}<br>${order.shopName}
+                    <br><button class="btn-delete" onclick="deleteOrder('${order.id}', '${order.date}', '${order.shopName}')">刪除</button>
                 </th>`;
             });
             html += `<th>本月總計</th></tr></thead><tbody>`;
 
+            // 同事資料列
             const sortedNames = Array.from(allNames).sort();
             sortedNames.forEach(name => {
                 html += `<tr><td class="name-col">${name}</td>`;
                 let personTotal = 0;
+                
                 orders.forEach(order => {
                     const record = order.details.find(d => d.name === name);
                     if (record) {
-                        html += `<td><span class="meal-info">${record.meal}</span><br><b>${record.finalPrice}</b></td>`;
+                        html += `<td>
+                            <span class="meal-info">${record.meal}</span>
+                            <span class="calc-detail">${record.originalPrice} + ${order.perPersonExtra}</span>
+                            <div style="font-weight:bold; color:#2c3e50; margin-top:2px;">= ${record.finalPrice}</div>
+                        </td>`;
                         personTotal += record.finalPrice;
                     } else {
                         html += `<td>-</td>`;
@@ -139,12 +146,21 @@
                 html += `<td class="total-row">$${personTotal}</td></tr>`;
             });
 
+            // 底部統計區（外送費與折扣明細）
+            html += `<tr><td class="name-col" style="background:#eee;">外送+服務費</td>`;
+            orders.forEach(order => { html += `<td style="color:#2980b9;">${order.totalFee || 0}</td>`; });
+            html += `<td rowspan="2" style="background:#eee;">---</td></tr>`;
+
+            html += `<tr><td class="name-col" style="background:#eee;">優惠折扣</td>`;
+            orders.forEach(order => { html += `<td style="color:#e74c3c;">-${order.totalDiscount || 0}</td>`; });
+            html += `</tr>`;
+
             html += `</tbody></table>`;
             tableContainer.innerHTML = html;
 
         } catch (error) {
             console.error(error);
-            tableContainer.innerHTML = "讀取失敗，請確認 Firebase 索引是否已建立（檢查瀏覽器 F12 提示）。";
+            tableContainer.innerHTML = "讀取失敗，請確認 Firebase 索引設定。";
         }
     }
 
