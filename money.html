@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>辦公室訂餐統計系統</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background-color: #f4f7f6; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h2 { border-bottom: 2px solid #2c3e50; padding-bottom: 10px; }
+        .section { margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        label { display: inline-block; width: 100px; margin-bottom: 10px; }
+        input[type="text"], input[type="number"], input[type="date"] { padding: 8px; margin-right: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        .member-row { display: flex; align-items: center; margin-bottom: 10px; gap: 10px; background: #fafafa; padding: 10px; border-radius: 4px; }
+        button { cursor: pointer; padding: 8px 15px; border: none; border-radius: 4px; transition: 0.3s; }
+        .btn-add { background-color: #27ae60; color: white; }
+        .btn-submit { background-color: #2980b9; color: white; width: 100%; font-size: 1.1em; }
+        .btn-remove { background-color: #e74c3c; color: white; }
+        .result { margin-top: 20px; font-weight: bold; color: #2c3e50; background: #e8f4fd; padding: 15px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🍴 訂餐登記 (第一頁)</h2>
+
+    <div class="section">
+        <label>日期：</label><input type="date" id="orderDate"><br>
+        <label>店家名稱：</label><input type="text" id="shopName" placeholder="例如：麥當勞">
+    </div>
+
+    <div class="section">
+        <label>外送+服務費：</label><input type="number" id="fee" value="0" placeholder="運費+服務費"><br>
+        <label>優惠折扣：</label><input type="number" id="discount" value="0" placeholder="負值請填正數">
+        <p style="font-size: 0.8em; color: #666;">公式：(服務費 - 折扣) ÷ 總人數 = 每人分攤金額</p>
+    </div>
+
+    <div class="section">
+        <h3>同事明細</h3>
+        <div id="memberList">
+            <div class="member-row">
+                <input type="text" class="m-name" placeholder="同事姓名">
+                <input type="text" class="m-meal" placeholder="餐點名稱">
+                <input type="number" class="m-price" placeholder="金額" value="0">
+                <button class="btn-remove" onclick="this.parentElement.remove()">刪除</button>
+            </div>
+        </div>
+        <button class="btn-add" onclick="addMember()">+ 新增同事</button>
+    </div>
+
+    <button class="btn-submit" onclick="calculate()">計算並登記 (預覽結果)</button>
+
+    <div id="summary" class="result" style="display:none;"></div>
+</div>
+
+<script>
+    // 設定預設日期為今天
+    document.getElementById('orderDate').valueAsDate = new Date();
+
+    function addMember() {
+        const div = document.createElement('div');
+        div.className = 'member-row';
+        div.innerHTML = `
+            <input type="text" class="m-name" placeholder="同事姓名">
+            <input type="text" class="m-meal" placeholder="餐點名稱">
+            <input type="number" class="m-price" placeholder="金額" value="0">
+            <button class="btn-remove" onclick="this.parentElement.remove()">刪除</button>
+        `;
+        document.getElementById('memberList').appendChild(div);
+    }
+
+    function calculate() {
+        const fee = parseFloat(document.getElementById('fee').value) || 0;
+        const discount = parseFloat(document.getElementById('discount').value) || 0;
+        const names = document.getElementsByClassName('m-name');
+        const meals = document.getElementsByClassName('m-meal');
+        const prices = document.getElementsByClassName('m-price');
+        
+        const count = names.length;
+        if (count === 0) return alert("請至少新增一位同事");
+
+        const netExtra = fee - discount;
+        const perPersonExtra = Math.round(netExtra / count);
+
+        let html = `📅 日期：${document.getElementById('orderDate').value}<br>`;
+        html += `🏪 店家：${document.getElementById('shopName').value}<br><hr>`;
+        html += `💡 每人分攤額：(${fee} - ${discount}) ÷ ${count} = ${perPersonExtra} 元<br><br>`;
+
+        let totalOrder = 0;
+        for (let i = 0; i < count; i++) {
+            const p = parseFloat(prices[i].value) || 0;
+            const final = p + perPersonExtra;
+            totalOrder += final;
+            html += `👤 ${names[i].value || '匿名'}：${meals[i].value} (${p} + ${perPersonExtra}) = <b>${final} 元</b><br>`;
+        }
+        
+        html += `<br>💰 今日總收金額：${totalOrder} 元`;
+
+        const summary = document.getElementById('summary');
+        summary.innerHTML = html;
+        summary.style.display = 'block';
+    }
+</script>
+
+</body>
+</html>
