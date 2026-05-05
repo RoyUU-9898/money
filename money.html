@@ -22,6 +22,7 @@
         .btn-report { background-color: #8e44ad; color: white; width: 100%; font-size: 1.1em; margin-bottom: 10px; text-decoration: none; display: inline-block; text-align: center; line-height: 40px; box-sizing: border-box; }
         .btn-remove { background-color: #e74c3c; color: white; }
         .btn-action { background-color: #16a085; color: white; }
+        .btn-delete { background-color: #c0392b; color: white; }
         .result { margin-top: 20px; font-weight: bold; color: #2c3e50; background: #e8f4fd; padding: 15px; border-radius: 5px; white-space: pre-line; }
         input::placeholder { color: #aaa; }
     </style>
@@ -43,9 +44,14 @@
     </div>
 
     <div class="section">
-        <label>新增老師姓名：</label>
+        <label>老師姓名管理：</label>
         <input type="text" id="newTeacherName" placeholder="輸入新老師姓名">
-        <button class="btn-action" onclick="addNewTeacher()">+ 新增至選單</button>
+        <button class="btn-action" onclick="addNewTeacher()">+ 新增</button>
+        
+        <select id="deleteTeacherSelect" style="margin-left: 10px;">
+            <option value="">選擇要刪除的老師</option>
+        </select>
+        <button class="btn-delete" onclick="deleteTeacher()">- 刪除</button>
     </div>
 
     <div class="section">
@@ -94,7 +100,12 @@
     // 初始老師名單陣列
     let teacherList = ["Mey-Xue", "Roy"];
 
-    // 動態新增老師到所有下拉選單
+    // 頁面載入時初始化下拉選單
+    document.addEventListener("DOMContentLoaded", function() {
+        updateAllSelectOptions();
+    });
+
+    // 新增老師至選單
     window.addNewTeacher = function() {
         const nameInput = document.getElementById('newTeacherName');
         const newName = nameInput.value.trim();
@@ -107,27 +118,56 @@
             return alert("該老師姓名已經在選單中了！");
         }
 
-        // 加入陣列中
         teacherList.push(newName);
+        updateAllSelectOptions();
+        alert(`已成功將「${newName}」加入選單！`);
+        nameInput.value = ''; // 清空輸入框
+    }
 
-        // 更新頁面上所有的 <select> 下拉選單
+    // 從選單中刪除老師
+    window.deleteTeacher = function() {
+        const select = document.getElementById('deleteTeacherSelect');
+        const nameToDelete = select.value;
+
+        if (!nameToDelete) {
+            return alert("請先從下拉選單選擇要刪除的老師姓名");
+        }
+
+        if (confirm(`確定要將 ${nameToDelete} 從選單中永久刪除嗎？`)) {
+            // 從陣列中移除該元素
+            teacherList = teacherList.filter(item => item !== nameToDelete);
+            updateAllSelectOptions();
+            alert(`已成功刪除「${nameToDelete}」`);
+        }
+    }
+
+    // 更新所有頁面上的下拉選單選項
+    function updateAllSelectOptions() {
+        // 取得主要樣板選單、明細列選單與刪除選單
+        const deleteSelect = document.getElementById('deleteTeacherSelect');
+        
+        // 重建刪除選單
+        let deleteOptionsHtml = '<option value="">選擇要刪除的老師</option>';
+        teacherList.forEach(name => {
+            deleteOptionsHtml += `<option value="${name}">${name}</option>`;
+        });
+        deleteSelect.innerHTML = deleteOptionsHtml;
+
+        // 更新表單裡所有的老師下拉選單
         const selects = document.querySelectorAll('.m-name');
         selects.forEach(select => {
-            const opt = document.createElement('option');
-            opt.value = newName;
-            opt.textContent = newName;
-            select.appendChild(opt);
+            let optionsHtml = '<option value="">選擇老師姓名</option>';
+            teacherList.forEach(name => {
+                optionsHtml += `<option value="${name}">${name}</option>`;
+            });
+            select.innerHTML = optionsHtml;
         });
-
-        alert(`已成功將「${newName}」加入下拉選單！`);
-        nameInput.value = ''; // 清空輸入框
     }
 
     window.addMember = function() {
         const div = document.createElement('div');
         div.className = 'member-row';
         
-        // 根據目前的 teacherList 動態建立選單項目
         let optionsHtml = '<option value="">選擇老師姓名</option>';
         teacherList.forEach(name => {
             optionsHtml += `<option value="${name}">${name}</option>`;
@@ -158,12 +198,10 @@
         
         const count = mealInputs.length;
 
-        // 基本驗證
         if (!orderDate) return alert("請填寫日期");
         if (!shopName) return alert("請填寫店家名稱");
         if (count === 0) return alert("請至少新增一位老師");
 
-        // 二次確認
         if (!confirm(`確定要儲存 ${orderDate} ${shopName} 的訂單嗎？`)) return;
 
         const netExtra = fee - discount;
@@ -182,7 +220,6 @@
         let summaryText = `📅 日期：${orderDate}\n🏪 店家：${shopName}\n💡 分攤額：${perPersonExtra} 元\n----------------\n`;
 
         for (let i = 0; i < count; i++) {
-            // 讀取下拉選單的值
             const selectValue = nameSelects[i].value;
             const selectedName = selectValue !== "" ? selectValue : '匿名';
 
