@@ -21,6 +21,7 @@
         .btn-submit { background-color: #2980b9; color: white; width: 100%; font-size: 1.1em; margin-bottom: 10px; }
         .btn-report { background-color: #8e44ad; color: white; width: 100%; font-size: 1.1em; margin-bottom: 10px; text-decoration: none; display: inline-block; text-align: center; line-height: 40px; box-sizing: border-box; }
         .btn-remove { background-color: #e74c3c; color: white; }
+        .btn-action { background-color: #16a085; color: white; }
         .result { margin-top: 20px; font-weight: bold; color: #2c3e50; background: #e8f4fd; padding: 15px; border-radius: 5px; white-space: pre-line; }
         input::placeholder { color: #aaa; }
     </style>
@@ -42,15 +43,20 @@
     </div>
 
     <div class="section">
+        <label>新增老師姓名：</label>
+        <input type="text" id="newTeacherName" placeholder="輸入新老師姓名">
+        <button class="btn-action" onclick="addNewTeacher()">+ 新增至選單</button>
+    </div>
+
+    <div class="section">
         <h3>老師餐點</h3>
         <div id="memberList">
             <div class="member-row">
-                <select class="m-name" id="nameSelectTemplate" style="display: none;">
+                <select class="m-name" id="nameSelectTemplate">
                     <option value="">選擇老師姓名</option>
                     <option value="Mey-Xue">Mey-Xue</option>
                     <option value="Roy">Roy</option>
-                    </select>
-                <input type="text" class="m-name" placeholder="老師姓名">
+                </select>
                 <input type="text" class="m-meal" placeholder="餐點名稱">
                 <input type="number" class="m-price" placeholder="金額">
                 <input type="text" class="m-note" placeholder="備註">
@@ -58,7 +64,6 @@
             </div>
         </div>
         <button class="btn-add" onclick="addMember()">+ 新增老師</button>
-        <p style="font-size: 0.8em; color: #666; margin-top: 10px;">提示：若姓名清單沒有需要的名字，請直接在上方輸入姓名即可。</p>
     </div>
 
     <button class="btn-submit" id="saveBtn">計算並儲存</button>
@@ -86,24 +91,52 @@
 
     document.getElementById('saveBtn').addEventListener('click', saveToFirebase);
 
-    // 常用老師名單（您未來若需要新增其他老師，直接在下方字串加入即可）
-    const teacherList = ["Mey-Xue", "Roy"];
+    // 初始老師名單陣列
+    let teacherList = ["Mey-Xue", "Roy"];
+
+    // 動態新增老師到所有下拉選單
+    window.addNewTeacher = function() {
+        const nameInput = document.getElementById('newTeacherName');
+        const newName = nameInput.value.trim();
+        
+        if (!newName) {
+            return alert("請先輸入要新增的老師姓名");
+        }
+        
+        if (teacherList.includes(newName)) {
+            return alert("該老師姓名已經在選單中了！");
+        }
+
+        // 加入陣列中
+        teacherList.push(newName);
+
+        // 更新頁面上所有的 <select> 下拉選單
+        const selects = document.querySelectorAll('.m-name');
+        selects.forEach(select => {
+            const opt = document.createElement('option');
+            opt.value = newName;
+            opt.textContent = newName;
+            select.appendChild(opt);
+        });
+
+        alert(`已成功將「${newName}」加入下拉選單！`);
+        nameInput.value = ''; // 清空輸入框
+    }
 
     window.addMember = function() {
         const div = document.createElement('div');
         div.className = 'member-row';
         
-        // 動態生成下拉選單選項
-        let optionsHtml = '<option value="">選擇老師姓名或直接輸入</option>';
+        // 根據目前的 teacherList 動態建立選單項目
+        let optionsHtml = '<option value="">選擇老師姓名</option>';
         teacherList.forEach(name => {
             optionsHtml += `<option value="${name}">${name}</option>`;
         });
 
         div.innerHTML = `
-            <select class="m-name" onchange="this.nextElementSibling.value = this.value">
+            <select class="m-name">
                 ${optionsHtml}
             </select>
-            <input type="text" class="m-name" placeholder="輸入姓名(若無下拉選擇)">
             <input type="text" class="m-meal" placeholder="餐點名稱">
             <input type="number" class="m-price" placeholder="金額">
             <input type="text" class="m-note" placeholder="備註">
@@ -118,7 +151,6 @@
         const fee = parseFloat(document.getElementById('fee').value) || 0;
         const discount = parseFloat(document.getElementById('discount').value) || 0;
         
-        // 取得所有名字欄位的值 (優先使用下拉選單，若下拉選單沒選，再讀取文字框的值)
         const nameSelects = document.getElementsByClassName('m-name');
         const mealInputs = document.getElementsByClassName('m-meal');
         const priceInputs = document.getElementsByClassName('m-price');
@@ -150,18 +182,9 @@
         let summaryText = `📅 日期：${orderDate}\n🏪 店家：${shopName}\n💡 分攤額：${perPersonExtra} 元\n----------------\n`;
 
         for (let i = 0; i < count; i++) {
-            // 處理姓名：優先取前面的 <select> 值，若沒有則取後面輸入框的值
-            let selectedName = "";
-            const selectElement = document.querySelectorAll('.member-row select.m-name')[i];
-            const inputElement = document.querySelectorAll('.member-row input.m-name')[i];
-            
-            if (selectElement && selectElement.value !== "") {
-                selectedName = selectElement.value;
-            } else if (inputElement && inputElement.value !== "") {
-                selectedName = inputElement.value;
-            } else {
-                selectedName = '匿名';
-            }
+            // 讀取下拉選單的值
+            const selectValue = nameSelects[i].value;
+            const selectedName = selectValue !== "" ? selectValue : '匿名';
 
             const p = parseFloat(priceInputs[i].value) || 0;
             const final = p + perPersonExtra;
