@@ -1,233 +1,499 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-    <meta charset="UTF-8">
-    <title>Lishin訂餐帳簿報表</title>
-    <style>
-        body { font-family: "Microsoft JhengHei", sans-serif; margin: 20px; background-color: #f4f7f6; }
-        .container { max-width: 1350px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .header-box { text-align: center; border-bottom: 2px solid #3498db; padding-bottom: 15px; margin-bottom: 20px; position: relative; }
-        h2 { color: #2c3e50; margin: 0; }
-        .filter-section { background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
-        
-        /* 專為列印與黑白表格設計的樣式 */
-        table { width: 100%; border-collapse: collapse; background: white; font-size: 13px; color: black; }
-        th, td { border: 1px solid #000000; padding: 6px; text-align: center; vertical-align: middle; }
-        th { background-color: #f2f2f2 !important; color: black !important; font-weight: bold; }
-        .name-col { background-color: #fafafa !important; font-weight: bold; width: 80px; }
-        .total-row { background-color: #fdfdfd !important; font-weight: bold; color: black; width: 100px; }
-        .pay-col { width: 80px; font-weight: bold; }
-        
-        .meal-info { font-size: 0.95em; color: black; display: block; font-weight: bold; }
-        .note-row { background-color: #ffffff; font-size: 0.85em; color: #333333; }
-        .calc-detail { font-size: 0.85em; color: #444; display: block; }
-        .paid-bg { background-color: #e6e6e6 !important; color: black !important; text-decoration: underline; }
-        
-        .btn-delete { background: #555; color: white; border: none; padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 11px; margin-top: 5px; }
-        .btn-confirm { background-color: #2980b9; color: white; border: none; padding: 6px 20px; border-radius: 4px; cursor: pointer; }
+<!DOCTYPE html><html lang="zh-TW"><head>
 
-        /* 列印設定：隱藏多餘按鈕、下拉選單，自動產生最清爽的 PDF 版面 */
-        @media print {
-            body { background-color: white; margin: 0; }
-            .container { max-width: 100%; padding: 0; box-shadow: none; }
-            .btn-delete, .btn-confirm, .filter-section { display: none !important; }
-            input[type="checkbox"] { display: none !important; }
-            table { font-size: 12px; }
-            td, th { border: 1px solid #000 !important; }
-            .name-col, .total-row, th { background-color: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        }
-    </style>
-</head>
-<body>
+<meta charset="UTF-8">
 
-<div class="container">
-    <div class="header-box">
-        <h2>Lishin訂餐帳簿報表</h2>
-    </div>
+<title>Lishin訂餐價錢表</title>
 
-    <div class="filter-section">
-        <label>年份：</label>
-        <select id="selectYear"></select>
-        <label>月份：</label>
-        <select id="selectMonth">
-            <option value="01">1月</option><option value="02">2月</option>
-            <option value="03">3月</option><option value="04">4月</option>
-            <option value="05">5月</option><option value="06">6月</option>
-            <option value="07">7月</option><option value="08">8月</option>
-            <option value="09">9月</option><option value="10">10月</option>
-            <option value="11">11月</option><option value="12">12月</option>
-        </select>
-        <button class="btn-confirm" onclick="fetchData()">確認</button>
-        <button class="btn-confirm" onclick="window.print()" style="background-color: #27ae60;">列印 / 另存 PDF</button>
-    </div>
-    
-    <div id="tableContainer" style="overflow-x: auto;">正在讀取資料...</div>
+<style>
+
+body { font-family: "Microsoft JhengHei", sans-serif; margin: 20px; background-color: #f4f7f6; }
+
+.container { max-width: 1350px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+
+.header-box { text-align: center; border-bottom: 2px solid #3498db; padding-bottom: 15px; margin-bottom: 20px; position: relative; }
+
+h2 { color: #2c3e50; margin: 0; }
+
+.btn-pdf { position: absolute; right: 0; top: 50%; transform: translateY(-50%); background-color: #27ae60; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+
+.btn-pdf:hover { background-color: #219653; }
+
+.filter-section { background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+
+table { width: 100%; border-collapse: collapse; background: white; font-size: 14px; }
+
+th, td { border: 1px solid #ccc; padding: 6px; text-align: center; vertical-align: middle; }
+
+th { background-color: #3498db; color: white; min-width: 100px; }
+
+.name-col { background-color: #f9f9f9; font-weight: bold; width: 80px; }
+
+.total-row { background-color: #fff9db; font-weight: bold; color: #d35400; width: 100px; }
+
+.pay-col { width: 80px; font-weight: bold; }
+
+.btn-delete { background: #ff4d4d; color: white; border: none; padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 11px; margin-top: 5px; }
+
+.btn-confirm { background-color: #2980b9; color: white; border: none; padding: 6px 20px; border-radius: 4px; cursor: pointer; }
+
+.meal-info { font-size: 0.95em; color: #2c3e50; display: block; font-weight: bold; }
+
+.note-row { background-color: #fdfdfd; font-size: 0.8em; color: #c0392b; } /* 已取消斜體字設定 */
+
+.calc-detail { font-size: 0.85em; color: #7f8c8d; display: block; }
+
+.paid-bg { background-color: #eaffea !important; color: #27ae60 !important; }
+
+input[type="checkbox"] { transform: scale(1.3); cursor: pointer; }
+
+</style>
+
+<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script></head><body><div class="container">
+
+<div class="header-box">
+
+<h2>Lishin訂餐價錢表</h2>
+
+<button class="btn-pdf" onclick="exportToPDF()">📄 匯出 PDF</button>
+
 </div>
 
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, collection, getDocs, query, where, orderBy, doc, deleteDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    const ADMIN_PASSWORD = "0822"; 
 
-    const firebaseConfig = {
-        apiKey: "AIzaSyD9AC2UZYYGLyBgVQnYYszgYmvP1ryJ0CA",
-        authDomain: "money-count-1e609.firebaseapp.com",
-        projectId: "money-count-1e609",
-        storageBucket: "money-count-1e609.firebasestorage.app",
-        messagingSenderId: "524544445971",
-        appId: "1:524544445971:web:56a49a7509024bd75a39e6"
-    };
+<div class="filter-section">
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+<label>年份：</label>
 
-    const yearSelect = document.getElementById('selectYear');
-    for(let y = 2026; y <= 2030; y++) {
-        let opt = document.createElement('option');
-        opt.value = y; opt.text = y + "年";
-        if(y === new Date().getFullYear()) opt.selected = true;
-        yearSelect.appendChild(opt);
-    }
-    document.getElementById('selectMonth').value = String(new Date().getMonth() + 1).padStart(2, '0');
+<select id="selectYear"></select>
 
-    window.deleteOrder = async function(id, date, shop) {
-        const password = prompt(`請輸入密碼以刪除 ${date} ${shop} 的資料：`);
-        if (password === null) return; 
-        
-        if (password === ADMIN_PASSWORD) {
-            try {
-                await deleteDoc(doc(db, "orders", id));
-                alert("刪除成功！");
-                fetchData();
-            } catch (error) {
-                alert("連線失敗，請檢查網路。");
-            }
-        } else {
-            alert("密碼錯誤，操作取消。");
-        }
-    }
+<label>月份：</label>
 
-    window.updateMonthlyPay = async function(year, month, name, checkbox) {
-        const statusText = checkbox.checked ? "已繳清" : "未繳費";
-        const password = prompt(`請輸入密碼將 ${name} 標記為 ${statusText}：`);
-        
-        if (password === null) {
-            checkbox.checked = !checkbox.checked;
-            return;
-        }
+<select id="selectMonth">
 
-        if (password === ADMIN_PASSWORD) {
-            const payId = `${year}_${month}_${name}`;
-            try {
-                await setDoc(doc(db, "monthlyPayments", payId), {
-                    paid: checkbox.checked,
-                    year: year,
-                    month: month,
-                    name: name
-                });
-                
-                const totalTd = checkbox.closest('tr').querySelector('.total-row');
-                if(checkbox.checked) totalTd.classList.add('paid-bg');
-                else totalTd.classList.remove('paid-bg');
-            } catch (error) {
-                alert("更新失敗");
-            }
-        } else {
-            alert("密碼錯誤，操作取消。");
-            checkbox.checked = !checkbox.checked;
-        }
-    }
+<option value="01">1月</option><option value="02">2月</option>
 
-    async function fetchData() {
-        const tableContainer = document.getElementById('tableContainer');
-        const selectedYear = document.getElementById('selectYear').value;
-        const selectedMonth = document.getElementById('selectMonth').value;
-        const startDate = `${selectedYear}-${selectedMonth}-01`;
-        const endDate = `${selectedYear}-${selectedMonth}-31`;
+<option value="03">3月</option><option value="04">4月</option>
 
-        try {
-            const q = query(collection(db, "orders"), where("date", ">=", startDate), where("date", "<=", endDate), orderBy("date", "asc"));
-            const querySnapshot = await getDocs(q);
-            
-            const paySnapshot = await getDocs(collection(db, "monthlyPayments"));
-            const payments = {};
-            paySnapshot.forEach(d => payments[d.id] = d.data().paid);
+<option value="05">5月</option><option value="06">6月</option>
 
-            let orders = [];
-            let allNames = new Set();
-            querySnapshot.forEach((doc) => {
-                orders.push({ id: doc.id, ...doc.data() });
-                doc.data().details.forEach(item => allNames.add(item.name));
-            });
+<option value="07">7月</option><option value="08">8月</option>
 
-            if (orders.length === 0) {
-                tableContainer.innerHTML = "<p style='text-align:center; color:#999;'>此月份目前尚無登記資料。</p>";
-                return;
-            }
+<option value="09">9月</option><option value="10">10月</option>
 
-            let html = `<table><thead><tr><th class="name-col">老師 / 日期</th>`;
-            orders.forEach(order => {
-                html += `<th>${order.date.substring(5).replace('-','/')}<br>${order.shopName}<br><button class="btn-delete" onclick="deleteOrder('${order.id}', '${order.date}', '${order.shopName}')">刪除</button></th>`;
-            });
-            html += `<th class="total-row">本月總計</th><th class="pay-col">繳費狀態</th></tr></thead><tbody>`;
+<option value="11">11月</option><option value="12">12月</option>
 
-            const sortedNames = Array.from(allNames).sort();
-            sortedNames.forEach(name => {
-                const payId = `${selectedYear}_${selectedMonth}_${name}`;
-                const isPaid = payments[payId] || false;
-                
-                // 頂層資料列
-                html += `<tr><td class="name-col" rowspan="2">${name}</td>`;
-                let personTotal = 0;
-                
-                orders.forEach(order => {
-                    const record = order.details.find(d => d.name === name);
-                    if (record) {
-                        html += `<td>
-                            <span class="meal-info">${record.meal}</span>
-                            <span class="calc-detail">${record.originalPrice} + ${order.perPersonExtra} = <b>${record.finalPrice}</b></span>
-                        </td>`;
-                        personTotal += record.finalPrice;
-                    } else {
-                        html += `<td>-</td>`;
-                    }
-                });
+</select>
 
-                html += `<td class="total-row ${isPaid ? 'paid-bg' : ''}" rowspan="2">$${personTotal}</td>
-                         <td class="pay-col" rowspan="2"><input type="checkbox" ${isPaid ? 'checked' : ''} onchange="updateMonthlyPay('${selectedYear}', '${selectedMonth}', '${name}', this)"><span>${isPaid ? '已繳清' : '未繳費'}</span></td></tr>`;
+<button class="btn-confirm" onclick="fetchData()">確認</button>
 
-                // 備註下層列
-                html += `<tr class="note-row">`;
-                orders.forEach(order => {
-                    const record = order.details.find(d => d.name === name);
-                    if (record && record.note) {
-                        html += `<td>${record.note}</td>`;
-                    } else {
-                        html += `<td>-</td>`;
-                    }
-                });
-                html += `</tr>`;
-            });
+</div>
 
-            html += `<tr><td class="name-col" style="background:#eee;">外送+服務費</td>`;
-            orders.forEach(order => { html += `<td style="color:#2980b9;">${order.totalFee || 0}</td>`; });
-            html += `<td colspan="2" style="background:#eee;">---</td></tr>
-                     <tr><td class="name-col" style="background:#eee;">優惠折扣</td>`;
-            orders.forEach(order => { html += `<td style="color:#e74c3c;">-${order.totalDiscount || 0}</td>`; });
-            html += `<td colspan="2" style="background:#eee;">---</td></tr></tbody></table>`;
-            
-            tableContainer.innerHTML = html;
 
-        } catch (error) {
-            console.error(error);
-            tableContainer.innerHTML = "讀取失敗，請確認 Firebase 索引。";
-        }
-    }
+<div id="tableContainer" style="overflow-x: auto;">正在讀取資料...</div></div><script type="module">
 
-    window.fetchData = fetchData;
-    fetchData();
-</script>
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 
-</body>
-</html>
+import { getFirestore, collection, getDocs, query, where, orderBy, doc, deleteDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+
+
+const ADMIN_PASSWORD = "0822";
+
+
+
+const firebaseConfig = {
+
+apiKey: "AIzaSyD9AC2UZYYGLyBgVQnYYszgYmvP1ryJ0CA",
+
+authDomain: "money-count-1e609.firebaseapp.com",
+
+projectId: "money-count-1e609",
+
+storageBucket: "money-count-1e609.firebasestorage.app",
+
+messagingSenderId: "524544445971",
+
+appId: "1:524544445971:web:56a49a7509024bd75a39e6"
+
+};
+
+
+
+const app = initializeApp(firebaseConfig);
+
+const db = getFirestore(app);
+
+
+
+const yearSelect = document.getElementById('selectYear');
+
+for(let y = 2026; y <= 2030; y++) {
+
+let opt = document.createElement('option');
+
+opt.value = y; opt.text = y + "年";
+
+if(y === new Date().getFullYear()) opt.selected = true;
+
+yearSelect.appendChild(opt);
+
+}
+
+document.getElementById('selectMonth').value = String(new Date().getMonth() + 1).padStart(2, '0');
+
+
+
+window.deleteOrder = async function(id, date, shop) {
+
+const password = prompt(`請輸入密碼以刪除 ${date} ${shop} 的資料：`);
+
+if (password === null) return;
+
+
+if (password === ADMIN_PASSWORD) {
+
+try {
+
+await deleteDoc(doc(db, "orders", id));
+
+alert("刪除成功！");
+
+fetchData();
+
+} catch (error) {
+
+alert("連線失敗，請檢查網路。");
+
+}
+
+} else {
+
+alert("密碼錯誤，操作取消。");
+
+}
+
+}
+
+
+
+window.updateMonthlyPay = async function(year, month, name, checkbox) {
+
+const statusText = checkbox.checked ? "已繳清" : "未繳費";
+
+const password = prompt(`請輸入密碼將 ${name} 標記為 ${statusText}：`);
+
+
+if (password === null) {
+
+checkbox.checked = !checkbox.checked;
+
+return;
+
+}
+
+
+
+if (password === ADMIN_PASSWORD) {
+
+const payId = `${year}_${month}_${name}`;
+
+try {
+
+await setDoc(doc(db, "monthlyPayments", payId), {
+
+paid: checkbox.checked,
+
+year: year,
+
+month: month,
+
+name: name
+
+});
+
+
+const totalTd = checkbox.closest('tr').querySelector('.total-row');
+
+if(checkbox.checked) totalTd.classList.add('paid-bg');
+
+else totalTd.classList.remove('paid-bg');
+
+} catch (error) {
+
+alert("更新失敗");
+
+}
+
+} else {
+
+alert("密碼錯誤，操作取消。");
+
+checkbox.checked = !checkbox.checked;
+
+}
+
+}
+
+
+
+async function fetchData() {
+
+const tableContainer = document.getElementById('tableContainer');
+
+const selectedYear = document.getElementById('selectYear').value;
+
+const selectedMonth = document.getElementById('selectMonth').value;
+
+const startDate = `${selectedYear}-${selectedMonth}-01`;
+
+const endDate = `${selectedYear}-${selectedMonth}-31`;
+
+
+
+try {
+
+const q = query(collection(db, "orders"), where("date", ">=", startDate), where("date", "<=", endDate), orderBy("date", "asc"));
+
+const querySnapshot = await getDocs(q);
+
+
+const paySnapshot = await getDocs(collection(db, "monthlyPayments"));
+
+const payments = {};
+
+paySnapshot.forEach(d => payments[d.id] = d.data().paid);
+
+
+
+let orders = [];
+
+let allNames = new Set();
+
+querySnapshot.forEach((doc) => {
+
+orders.push({ id: doc.id, ...doc.data() });
+
+doc.data().details.forEach(item => allNames.add(item.name));
+
+});
+
+
+
+if (orders.length === 0) {
+
+tableContainer.innerHTML = "<p style='text-align:center; color:#999;'>此月份目前尚無登記資料。</p>";
+
+return;
+
+}
+
+
+
+let html = `<table><thead><tr><th class="name-col">老師 / 日期</th>`;
+
+orders.forEach(order => {
+
+html += `<th>${order.date.substring(5).replace('-','/')}<br>${order.shopName}<br><button class="btn-delete" onclick="deleteOrder('${order.id}', '${order.date}', '${order.shopName}')">刪除</button></th>`;
+
+});
+
+html += `<th class="total-row">本月總計</th><th class="pay-col">繳費狀態</th></tr></thead><tbody>`;
+
+
+
+const sortedNames = Array.from(allNames).sort();
+
+sortedNames.forEach(name => {
+
+const payId = `${selectedYear}_${selectedMonth}_${name}`;
+
+const isPaid = payments[payId] || false;
+
+
+// 1. 頂層資料列
+
+html += `<tr><td class="name-col" rowspan="2">${name}</td>`;
+
+let personTotal = 0;
+
+
+orders.forEach(order => {
+
+const record = order.details.find(d => d.name === name);
+
+if (record) {
+
+html += `<td>
+
+<span class="meal-info">${record.meal}</span>
+
+<span class="calc-detail">${record.originalPrice} + ${order.perPersonExtra} = <b>${record.finalPrice}</b></span>
+
+</td>`;
+
+personTotal += record.finalPrice;
+
+} else {
+
+html += `<td>-</td>`;
+
+}
+
+});
+
+
+
+html += `<td class="total-row ${isPaid ? 'paid-bg' : ''}" rowspan="2">$${personTotal}</td>
+
+<td class="pay-col" rowspan="2"><input type="checkbox" ${isPaid ? 'checked' : ''} onchange="updateMonthlyPay('${selectedYear}', '${selectedMonth}', '${name}', this)"></td></tr>`;
+
+
+
+// 2. 備註下層列
+
+html += `<tr class="note-row">`;
+
+orders.forEach(order => {
+
+const record = order.details.find(d => d.name === name);
+
+if (record && record.note) {
+
+html += `<td>備註：${record.note}</td>`;
+
+} else {
+
+html += `<td>-</td>`;
+
+}
+
+});
+
+html += `</tr>`;
+
+});
+
+
+
+html += `<tr><td class="name-col" style="background:#eee;">外送+服務費</td>`;
+
+orders.forEach(order => { html += `<td style="color:#2980b9;">${order.totalFee || 0}</td>`; });
+
+html += `<td colspan="2" style="background:#eee;">---</td></tr>
+
+<tr><td class="name-col" style="background:#eee;">優惠折扣</td>`;
+
+orders.forEach(order => { html += `<td style="color:#e74c3c;">-${order.totalDiscount || 0}</td>`; });
+
+html += `<td colspan="2" style="background:#eee;">---</td></tr></tbody></table>`;
+
+
+tableContainer.innerHTML = html;
+
+
+
+} catch (error) {
+
+console.error(error);
+
+tableContainer.innerHTML = "讀取失敗，請確認 Firebase 索引。";
+
+}
+
+}
+
+
+
+// 匯出 PDF 智慧調整大小 (將整個視窗容器完整縮放以符合 A4 橫式頁面)
+
+window.exportToPDF = async function() {
+
+const element = document.querySelector('.container');
+
+
+// 暫時隱藏不必要的按鈕與核取方塊
+
+const deleteBtns = document.querySelectorAll('.btn-delete');
+
+const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+
+deleteBtns.forEach(btn => btn.style.display = 'none');
+
+checkboxes.forEach(cb => cb.style.display = 'none');
+
+
+
+try {
+
+const canvas = await html2canvas(element, { scale: 2, useCORS: true });
+
+const imgData = canvas.toDataURL('image/png');
+
+
+const { jsPDF } = window.jspdf;
+
+// 橫向 A4 尺寸 (寬 297mm x 高 210mm)
+
+const pdf = new jsPDF('l', 'mm', 'a4');
+
+
+const pdfWidth = 297;
+
+const pdfHeight = 210;
+
+
+// 計算長寬比例，將超出範圍的部分等比例縮小
+
+const canvasRatio = canvas.width / canvas.height;
+
+let finalWidth = pdfWidth;
+
+let finalHeight = pdfWidth / canvasRatio;
+
+
+
+if (finalHeight > pdfHeight) {
+
+finalHeight = pdfHeight;
+
+finalWidth = pdfHeight * canvasRatio;
+
+}
+
+
+
+// 置中對齊
+
+const xOffset = (pdfWidth - finalWidth) / 2;
+
+const yOffset = (pdfHeight - finalHeight) / 2;
+
+
+
+pdf.addImage(imgData, 'PNG', xOffset, yOffset, finalWidth, finalHeight);
+
+pdf.save('Lishin訂餐價錢表.pdf');
+
+} catch (e) {
+
+alert('匯出 PDF 失敗，請重試。');
+
+} finally {
+
+// 恢復畫面
+
+deleteBtns.forEach(btn => btn.style.display = '');
+
+checkboxes.forEach(cb => cb.style.display = '');
+
+}
+
+}
+
+
+
+window.fetchData = fetchData;
+
+fetchData();</script></body></html>
