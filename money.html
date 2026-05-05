@@ -85,7 +85,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, setDoc, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyD9AC2UZYYGLyBgVQnYYszgYmvP1ryJ0CA",
@@ -102,16 +102,32 @@
 
     document.getElementById('saveBtn').addEventListener('click', saveToFirebase);
 
-    // 空的初始名單陣列
+    // 存放雲端資料庫中的老師名單
     let teacherList = [];
 
-    // 頁面載入時初始化下拉選單
-    document.addEventListener("DOMContentLoaded", function() {
-        updateAllSelectOptions();
+    // 頁面載入時從資料庫抓取最新名單
+    document.addEventListener("DOMContentLoaded", async function() {
+        await loadTeachersFromDB();
     });
 
-    // 新增老師至選單
-    window.addNewTeacher = function() {
+    async function loadTeachersFromDB() {
+        try {
+            teacherList = [];
+            const querySnapshot = await getDocs(collection(db, "teachers"));
+            querySnapshot.forEach((doc) => {
+                teacherList.push(doc.id); // 將 Document ID 當作名字
+            });
+            updateAllSelectOptions();
+        } catch (error) {
+            console.error("讀取名單失敗:", error);
+            // 若沒有資料庫連線可先維持空白
+            teacherList = [];
+            updateAllSelectOptions();
+        }
+    }
+
+    // 新增老師至雲端
+    window.addNewTeacher = async function() {
         const nameInput = document.getElementById('newTeacherName');
         const newName = nameInput.value.trim();
         
@@ -123,14 +139,20 @@
             return alert("該老師姓名已經在選單中了！");
         }
 
-        teacherList.push(newName);
-        updateAllSelectOptions();
-        alert(`已成功將「${newName}」加入選單！`);
-        nameInput.value = ''; // 清空輸入框
+        try {
+            // 存入 Firebase 的 teachers 集合，以姓名為文件 ID
+            await setDoc(doc(db, "teachers", newName), { createdAt: new Date() });
+            teacherList.push(newName);
+            updateAllSelectOptions();
+            alert(`已成功將「${newName}」加入雲端選單！`);
+            nameInput.value = ''; // 清空輸入框
+        } catch (error) {
+            alert("儲存失敗，請檢查網路連線。");
+        }
     }
 
-    // 從選單中刪除老師
-    window.deleteTeacher = function() {
+    // 從雲端刪除老師
+    window.deleteTeacher = async function() {
         const select = document.getElementById('deleteTeacherSelect');
         const nameToDelete = select.value;
 
@@ -138,10 +160,15 @@
             return alert("請先從下拉選單選擇要刪除的老師姓名");
         }
 
-        if (confirm(`確定要將 ${nameToDelete} 從選單中永久刪除嗎？`)) {
-            teacherList = teacherList.filter(item => item !== nameToDelete);
-            updateAllSelectOptions();
-            alert(`已成功刪除「${nameToDelete}」`);
+        if (confirm(`確定要將 ${nameToDelete} 從雲端選單中永久刪除嗎？`)) {
+            try {
+                await deleteDoc(doc(db, "teachers", nameToDelete));
+                teacherList = teacherList.filter(item => item !== nameToDelete);
+                updateAllSelectOptions();
+                alert(`已成功刪除「${nameToDelete}」`);
+            } catch (error) {
+                alert("刪除失敗，請檢查網路連線。");
+            }
         }
     }
 
