@@ -2,38 +2,47 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Lishin訂餐價錢表</title>
+    <title>Lishin訂餐帳簿報表</title>
     <style>
         body { font-family: "Microsoft JhengHei", sans-serif; margin: 20px; background-color: #f4f7f6; }
         .container { max-width: 1350px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         .header-box { text-align: center; border-bottom: 2px solid #3498db; padding-bottom: 15px; margin-bottom: 20px; position: relative; }
         h2 { color: #2c3e50; margin: 0; }
-        .btn-pdf { position: absolute; right: 0; top: 50%; transform: translateY(-50%); background-color: #27ae60; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .btn-pdf:hover { background-color: #219653; }
         .filter-section { background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
-        table { width: 100%; border-collapse: collapse; background: white; font-size: 14px; }
-        th, td { border: 1px solid #ccc; padding: 6px; text-align: center; vertical-align: middle; }
-        th { background-color: #3498db; color: white; min-width: 100px; }
-        .name-col { background-color: #f9f9f9; font-weight: bold; width: 80px; }
-        .total-row { background-color: #fff9db; font-weight: bold; color: #d35400; width: 100px; }
+        
+        /* 專為列印與黑白表格設計的樣式 */
+        table { width: 100%; border-collapse: collapse; background: white; font-size: 13px; color: black; }
+        th, td { border: 1px solid #000000; padding: 6px; text-align: center; vertical-align: middle; }
+        th { background-color: #f2f2f2 !important; color: black !important; font-weight: bold; }
+        .name-col { background-color: #fafafa !important; font-weight: bold; width: 80px; }
+        .total-row { background-color: #fdfdfd !important; font-weight: bold; color: black; width: 100px; }
         .pay-col { width: 80px; font-weight: bold; }
-        .btn-delete { background: #ff4d4d; color: white; border: none; padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 11px; margin-top: 5px; }
+        
+        .meal-info { font-size: 0.95em; color: black; display: block; font-weight: bold; }
+        .note-row { background-color: #ffffff; font-size: 0.85em; color: #333333; }
+        .calc-detail { font-size: 0.85em; color: #444; display: block; }
+        .paid-bg { background-color: #e6e6e6 !important; color: black !important; text-decoration: underline; }
+        
+        .btn-delete { background: #555; color: white; border: none; padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 11px; margin-top: 5px; }
         .btn-confirm { background-color: #2980b9; color: white; border: none; padding: 6px 20px; border-radius: 4px; cursor: pointer; }
-        .meal-info { font-size: 0.95em; color: #2c3e50; display: block; font-weight: bold; }
-        .note-row { background-color: #fdfdfd; font-size: 0.8em; color: #c0392b; } /* 已取消斜體字設定 */
-        .calc-detail { font-size: 0.85em; color: #7f8c8d; display: block; }
-        .paid-bg { background-color: #eaffea !important; color: #27ae60 !important; }
-        input[type="checkbox"] { transform: scale(1.3); cursor: pointer; }
+
+        /* 列印設定：隱藏多餘按鈕、下拉選單，自動產生最清爽的 PDF 版面 */
+        @media print {
+            body { background-color: white; margin: 0; }
+            .container { max-width: 100%; padding: 0; box-shadow: none; }
+            .btn-delete, .btn-confirm, .filter-section { display: none !important; }
+            input[type="checkbox"] { display: none !important; }
+            table { font-size: 12px; }
+            td, th { border: 1px solid #000 !important; }
+            .name-col, .total-row, th { background-color: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
     </style>
-    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 
 <div class="container">
     <div class="header-box">
-        <h2>Lishin訂餐價錢表</h2>
-        <button class="btn-pdf" onclick="exportToPDF()">📄 匯出 PDF</button>
+        <h2>Lishin訂餐帳簿報表</h2>
     </div>
 
     <div class="filter-section">
@@ -49,6 +58,7 @@
             <option value="11">11月</option><option value="12">12月</option>
         </select>
         <button class="btn-confirm" onclick="fetchData()">確認</button>
+        <button class="btn-confirm" onclick="window.print()" style="background-color: #27ae60;">列印 / 另存 PDF</button>
     </div>
     
     <div id="tableContainer" style="overflow-x: auto;">正在讀取資料...</div>
@@ -167,7 +177,7 @@
                 const payId = `${selectedYear}_${selectedMonth}_${name}`;
                 const isPaid = payments[payId] || false;
                 
-                // 1. 頂層資料列
+                // 頂層資料列
                 html += `<tr><td class="name-col" rowspan="2">${name}</td>`;
                 let personTotal = 0;
                 
@@ -185,14 +195,14 @@
                 });
 
                 html += `<td class="total-row ${isPaid ? 'paid-bg' : ''}" rowspan="2">$${personTotal}</td>
-                         <td class="pay-col" rowspan="2"><input type="checkbox" ${isPaid ? 'checked' : ''} onchange="updateMonthlyPay('${selectedYear}', '${selectedMonth}', '${name}', this)"></td></tr>`;
+                         <td class="pay-col" rowspan="2"><input type="checkbox" ${isPaid ? 'checked' : ''} onchange="updateMonthlyPay('${selectedYear}', '${selectedMonth}', '${name}', this)"><span>${isPaid ? '已繳清' : '未繳費'}</span></td></tr>`;
 
-                // 2. 備註下層列
+                // 備註下層列
                 html += `<tr class="note-row">`;
                 orders.forEach(order => {
                     const record = order.details.find(d => d.name === name);
                     if (record && record.note) {
-                        html += `<td>備註：${record.note}</td>`;
+                        html += `<td>${record.note}</td>`;
                     } else {
                         html += `<td>-</td>`;
                     }
@@ -212,52 +222,6 @@
         } catch (error) {
             console.error(error);
             tableContainer.innerHTML = "讀取失敗，請確認 Firebase 索引。";
-        }
-    }
-
-    // 匯出 PDF 智慧調整大小 (將整個視窗容器完整縮放以符合 A4 橫式頁面)
-    window.exportToPDF = async function() {
-        const element = document.querySelector('.container');
-        
-        // 暫時隱藏不必要的按鈕與核取方塊
-        const deleteBtns = document.querySelectorAll('.btn-delete');
-        const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-        deleteBtns.forEach(btn => btn.style.display = 'none');
-        checkboxes.forEach(cb => cb.style.display = 'none');
-
-        try {
-            const canvas = await html2canvas(element, { scale: 2, useCORS: true });
-            const imgData = canvas.toDataURL('image/png');
-            
-            const { jsPDF } = window.jspdf;
-            // 橫向 A4 尺寸 (寬 297mm x 高 210mm)
-            const pdf = new jsPDF('l', 'mm', 'a4');
-            
-            const pdfWidth = 297;
-            const pdfHeight = 210;
-            
-            // 計算長寬比例，將超出範圍的部分等比例縮小
-            const canvasRatio = canvas.width / canvas.height;
-            let finalWidth = pdfWidth;
-            let finalHeight = pdfWidth / canvasRatio;
-
-            if (finalHeight > pdfHeight) {
-                finalHeight = pdfHeight;
-                finalWidth = pdfHeight * canvasRatio;
-            }
-
-            // 置中對齊
-            const xOffset = (pdfWidth - finalWidth) / 2;
-            const yOffset = (pdfHeight - finalHeight) / 2;
-
-            pdf.addImage(imgData, 'PNG', xOffset, yOffset, finalWidth, finalHeight);
-            pdf.save('Lishin訂餐價錢表.pdf');
-        } catch (e) {
-            alert('匯出 PDF 失敗，請重試。');
-        } finally {
-            // 恢復畫面
-            deleteBtns.forEach(btn => btn.style.display = '');
-            checkboxes.forEach(cb => cb.style.display = '');
         }
     }
 
