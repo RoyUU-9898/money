@@ -25,6 +25,8 @@
         .btn-delete { background-color: #c0392b; color: white; }
         .result { margin-top: 20px; font-weight: bold; color: #2c3e50; background: #e8f4fd; padding: 15px; border-radius: 5px; white-space: pre-line; }
         input::placeholder { color: #aaa; }
+        .row-group { display: flex; flex-direction: column; gap: 10px; }
+        .row-line { display: flex; align-items: center; gap: 10px; }
     </style>
 </head>
 <body>
@@ -45,13 +47,18 @@
 
     <div class="section">
         <label>老師姓名管理：</label>
-        <input type="text" id="newTeacherName" placeholder="輸入新老師姓名">
-        <button class="btn-action" onclick="addNewTeacher()">+ 新增</button>
-        
-        <select id="deleteTeacherSelect" style="margin-left: 10px;">
-            <option value="">選擇要刪除的老師</option>
-        </select>
-        <button class="btn-delete" onclick="deleteTeacher()">- 刪除</button>
+        <div class="row-group">
+            <div class="row-line">
+                <input type="text" id="newTeacherName" placeholder="輸入新老師姓名">
+                <button class="btn-action" onclick="addNewTeacher()">+ 新增至選單</button>
+            </div>
+            <div class="row-line">
+                <select id="deleteTeacherSelect">
+                    <option value="">選擇要刪除的老師</option>
+                </select>
+                <button class="btn-delete" onclick="deleteTeacher()">- 刪除選定老師</button>
+            </div>
+        </div>
     </div>
 
     <div class="section">
@@ -60,8 +67,6 @@
             <div class="member-row">
                 <select class="m-name" id="nameSelectTemplate">
                     <option value="">選擇老師姓名</option>
-                    <option value="Mey-Xue">Mey-Xue</option>
-                    <option value="Roy">Roy</option>
                 </select>
                 <input type="text" class="m-meal" placeholder="餐點名稱">
                 <input type="number" class="m-price" placeholder="金額">
@@ -97,8 +102,8 @@
 
     document.getElementById('saveBtn').addEventListener('click', saveToFirebase);
 
-    // 初始老師名單陣列
-    let teacherList = ["Mey-Xue", "Roy"];
+    // 空的初始名單陣列
+    let teacherList = [];
 
     // 頁面載入時初始化下拉選單
     document.addEventListener("DOMContentLoaded", function() {
@@ -134,7 +139,6 @@
         }
 
         if (confirm(`確定要將 ${nameToDelete} 從選單中永久刪除嗎？`)) {
-            // 從陣列中移除該元素
             teacherList = teacherList.filter(item => item !== nameToDelete);
             updateAllSelectOptions();
             alert(`已成功刪除「${nameToDelete}」`);
@@ -143,7 +147,6 @@
 
     // 更新所有頁面上的下拉選單選項
     function updateAllSelectOptions() {
-        // 取得主要樣板選單、明細列選單與刪除選單
         const deleteSelect = document.getElementById('deleteTeacherSelect');
         
         // 重建刪除選單
