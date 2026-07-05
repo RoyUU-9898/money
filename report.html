@@ -9,49 +9,31 @@
         .header-box { text-align: center; border-bottom: 2px solid #3498db; padding-bottom: 15px; margin-bottom: 20px; position: relative; }
         h2 { color: #2c3e50; margin: 0; }
         .filter-section { background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
-        
-        /* 讓表格區域支援左右滾動軸 */
-        #tableContainer {
-            width: 100%;
-            overflow-x: auto; /* 當欄位過多時出現左右拉條 */
-            white-space: nowrap;
-            padding-bottom: 10px;
-        }
-        
-        table { width: 100%; border-collapse: collapse; background: white; font-size: 14px; min-width: 800px; }
+        table { width: 100%; border-collapse: collapse; background: white; font-size: 14px; }
         th, td { border: 1px solid #ccc; padding: 6px; text-align: center; vertical-align: middle; }
         th { background-color: #3498db; color: white; min-width: 100px; }
         .name-col { background-color: #f9f9f9; font-weight: bold; width: 80px; }
         .total-row { background-color: #fff9db; font-weight: bold; color: #d35400; width: 100px; }
         .pay-col { width: 80px; font-weight: bold; }
         .btn-delete { background: #ff4d4d; color: white; border: none; padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 11px; margin-top: 5px; }
-        .btn-confirm { background-color: #2980b9; color: white; border: none; padding: 6px 20px; border-radius: 4px; cursor: pointer; }
+        .btn-confirm { background-color: #2980b9; color: white; border: none; padding: 6px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-link { background-color: #9b59b6; color: white; border: none; padding: 6px 15px; border-radius: 4px; cursor: pointer; text-decoration: none; font-weight: bold; font-size: 14px; }
+        .btn-link:hover { background-color: #8e44ad; }
         .meal-info { font-size: 0.95em; color: #2c3e50; display: block; font-weight: bold; }
         .note-row { background-color: #fdfdfd; font-size: 0.85em; color: #c0392b; }
         .calc-detail { font-size: 0.85em; color: #7f8c8d; display: block; }
         .paid-bg { background-color: #eaffea !important; color: #27ae60 !important; }
         input[type="checkbox"] { transform: scale(1.3); cursor: pointer; }
 
-        /* 瀏覽器列印設定：確保列印成 PDF 時，能保留完整色彩與縮放格式 */
+        /* 瀏覽器列印設定 */
         @media print {
-            @page {
-                size: A4 landscape;
-                margin: 10mm;
-            }
+            @page { size: A4 landscape; margin: 10mm; }
             body { background-color: white; margin: 0; }
             .container { max-width: 100%; width: 100%; padding: 0; box-shadow: none; }
-            .btn-delete, .btn-confirm, .filter-section { display: none !important; }
-            
+            .btn-delete, .btn-confirm, .filter-section, .btn-link { display: none !important; }
             #tableContainer { overflow-x: visible !important; }
-            
-            table { 
-                width: 100% !important; 
-                font-size: 10px !important;
-            }
-            th, td { 
-                padding: 3px !important; 
-                border: 1px solid #aaa !important; 
-            }
+            table { width: 100% !important; font-size: 10px !important; }
+            th, td { padding: 3px !important; border: 1px solid #aaa !important; }
             .name-col { background-color: #f9f9f9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             .total-row { background-color: #fff9db !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             .paid-bg { background-color: #eaffea !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -78,10 +60,11 @@
             <option value="11">11月</option><option value="12">12月</option>
         </select>
         <button class="btn-confirm" onclick="fetchData()">確認</button>
-        <button class="btn-confirm" onclick="window.print()" style="background-color: #27ae60;">列印 / 另存 PDF</button>
+        <button class="btn-confirm" onclick="window.print()" style="background-color: #27ae60;">🖨️ 列印 / 另存 PDF</button>
+        <a href="summary.html" class="btn-link">📊 前往跨月結算中心 ➔</a>
     </div>
     
-    <div id="tableContainer">正在讀取資料...</div>
+    <div id="tableContainer" style="overflow-x: auto;">正在讀取資料...</div>
 </div>
 
 <script type="module">
@@ -197,7 +180,6 @@
                 const payId = `${selectedYear}_${selectedMonth}_${name}`;
                 const isPaid = payments[payId] || false;
                 
-                // 頂層資料列
                 html += `<tr><td class="name-col" rowspan="2">${name}</td>`;
                 let personTotal = 0;
                 
@@ -215,14 +197,13 @@
                 });
 
                 html += `<td class="total-row ${isPaid ? 'paid-bg' : ''}" rowspan="2">$${personTotal}</td>
-                         <td class="pay-col" rowspan="2"><input type="checkbox" ${isPaid ? 'checked' : ''} onchange="updateMonthlyPay('${selectedYear}', '${selectedMonth}', '${name}', this)"><span>${isPaid ? '已繳清' : '未繳費'}</span></td></tr>`;
+                         <td class="pay-col" rowspan="2"><input type="checkbox" ${isPaid ? 'checked' : ''} onchange="updateMonthlyPay('${selectedYear}', '${selectedMonth}', '${name}', this)"></td></tr>`;
 
-                // 備註下層列
                 html += `<tr class="note-row">`;
                 orders.forEach(order => {
                     const record = order.details.find(d => d.name === name);
                     if (record && record.note) {
-                        html += `<td>${record.note}</td>`;
+                        html += `<td>備註：${record.note}</td>`;
                     } else {
                         html += `<td>-</td>`;
                     }
